@@ -1,6 +1,6 @@
-import { proxy } from './core/form-state'
+import { proxy, subscribe } from './core/form-state'
 function App() {
-    proxy({
+    const state = proxy({
         count: 0,
         isActive: true,
         info: {
@@ -8,6 +8,9 @@ function App() {
             birthDay: new Date()
         }
     })
+    // subscribe(state, 'isActive', () => console.log('abcd'))
+    // console.log('state: ', state)
+    // state.count = 1
     return (
         <div className='p-4'>
             <form className='max-w-sm mx-auto'>
