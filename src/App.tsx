@@ -8,10 +8,10 @@ function App() {
             birthDay: new Date()
         }
     })
-    subscribe(state, 'count', (record) => console.log('name is: ', record))
+    subscribe(state.info, 'name', (record) => console.log('name is: ', record))
     // console.log('state: ', state)
-    state.count = 2
-    // state.info.name = 'name'
+    // state.count = 2
+    state.info.name = 'name'
     return (
         <div className='p-4'>
             <form className='max-w-sm mx-auto'>

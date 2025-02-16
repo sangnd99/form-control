@@ -3,7 +3,7 @@ type TDefineObject = Record<string, unknown>
 type TSubscribeHandlers<T> = (record: T) => void
 
 /* ##### CONSTANT ##### */
-const SUBSCRIBES = new WeakMap<TDefineObject, Map<string, TSubscribeHandlers<unknown>[]>>()
+const SUBSCRIBERS = new WeakMap<TDefineObject, Map<string, TSubscribeHandlers<unknown>[]>>()
 const PROXY_CACHED = new WeakMap<object, object>()
 
 /* ##### HELPER FUNCTIONS ##### */
@@ -21,9 +21,18 @@ function canSubscribe(target: unknown) {
 
 /* ##### CORE FUNCTIONS ##### */
 function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): ProxifyObject {
-	if (PROXY_CACHED.has(obj)) {
-		return PROXY_CACHED.get(obj) as ProxifyObject
-	}
+    if (PROXY_CACHED.has(obj)) {
+        /**
+         * Obj: {foo: {bar: 'baz'}}
+		 * when doing
+		 * obj.foo.bar = 'something'
+		 * the `get` trap still be called for `foo` property
+		 * so that, we need to cached the handler of `foo` property and return if has
+		 * than re-create a new instance of Proxy for `foo`
+		 * if does that, the SUBSCRIBERS of `foo` will never be corrected
+         * */
+        return PROXY_CACHED.get(obj) as ProxifyObject
+    }
 
     const handlers = new Map<string, TSubscribeHandlers<unknown>[]>()
 
@@ -43,7 +52,7 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
                 return true
             }
             // get handlers by target
-            const handlers = SUBSCRIBES.get(receiver)?.get(p)
+            const handlers = SUBSCRIBERS.get(receiver)?.get(p)
             if (handlers) {
                 handlers.forEach((handler) => handler(newValue))
             }
@@ -52,14 +61,14 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
         }
     }
     const result = new Proxy(obj, proxyHandler)
-	PROXY_CACHED.set(obj, result)
-    SUBSCRIBES.set(result, handlers)
+    PROXY_CACHED.set(obj, result)
+    SUBSCRIBERS.set(result, handlers)
 
     return result
 }
 
 function subscribe<T extends TDefineObject, K extends keyof T>(target: T, field: K, handler: TSubscribeHandlers<T[K]>) {
-    let fieldSubscribed = SUBSCRIBES.get(target)
+    let fieldSubscribed = SUBSCRIBERS.get(target)
     if (fieldSubscribed) {
         const handlers = fieldSubscribed.get(field as string) ?? []
         handlers.push(handler as TSubscribeHandlers<unknown>)
@@ -68,7 +77,7 @@ function subscribe<T extends TDefineObject, K extends keyof T>(target: T, field:
         fieldSubscribed = new Map()
         fieldSubscribed.set(field as string, [handler as TSubscribeHandlers<unknown>])
     }
-    SUBSCRIBES.set(target, fieldSubscribed)
+    SUBSCRIBERS.set(target, fieldSubscribed)
 }
 
 export { proxy, subscribe }
