@@ -8,9 +8,10 @@ function App() {
             birthDay: new Date()
         }
     })
-    // subscribe(state, 'isActive', () => console.log('abcd'))
+    subscribe(state, 'count', (record) => console.log('name is: ', record))
     // console.log('state: ', state)
-    // state.count = 1
+    state.count = 2
+    // state.info.name = 'name'
     return (
         <div className='p-4'>
             <form className='max-w-sm mx-auto'>
@@ -54,6 +55,10 @@ function App() {
                 <button
                     type='submit'
                     className='text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full sm:w-auto px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800'
+                    // onClick={() => state.count++}
+                    onClick={() => {
+                        state.count = 2
+                    }}
                 >
                     Submit
                 </button>
