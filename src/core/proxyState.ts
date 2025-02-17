@@ -1,10 +1,12 @@
 /* ##### TYPES ##### */
 type TDefineObject = Record<string, unknown>
+type TPlainObject = Record<string, unknown> & InstanceType<typeof Object>
 type TSubscribeHandlers<T> = (record: T) => void
 
 /* ##### CONSTANT ##### */
 const SUBSCRIBERS = new WeakMap<TDefineObject, Map<string, TSubscribeHandlers<unknown>[]>>()
 const PROXY_CACHED = new WeakMap<object, object>()
+const TO_BE_NOTIFIED = new Set<TSubscribeHandlers<unknown>>()
 
 /* ##### HELPER FUNCTIONS ##### */
 function canSubscribe(target: unknown) {
@@ -19,17 +21,31 @@ function canSubscribe(target: unknown) {
     return true
 }
 
+// Batching notifier
+function flush(params: unknown) {
+    return function () {
+        TO_BE_NOTIFIED.forEach((fn) => fn(params))
+        TO_BE_NOTIFIED.clear()
+    }
+}
+
+function notify(fn: TSubscribeHandlers<unknown>, params: unknown) {
+    TO_BE_NOTIFIED.add(fn)
+    Promise.resolve().then(flush(params))
+}
+
 /* ##### CORE FUNCTIONS ##### */
 function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): ProxifyObject {
     if (PROXY_CACHED.has(obj)) {
         /**
          * Obj: {foo: {bar: 'baz'}}
-		 * when doing
-		 * obj.foo.bar = 'something'
-		 * the `get` trap still be called for `foo` property
-		 * so that, we need to cached the handler of `foo` property and return if has
-		 * than re-create a new instance of Proxy for `foo`
-		 * if does that, the SUBSCRIBERS of `foo` will never be corrected
+         * Example:
+         * when doing
+         * obj.foo.bar = 'something'
+         * the `get` trap still be called for `foo` property
+         * so that, we need to cached the handler of `foo` property and return if has
+         * than re-create a new instance of Proxy for `foo`
+         * if does that, the SUBSCRIBERS of `foo` will never be corrected
          * */
         return PROXY_CACHED.get(obj) as ProxifyObject
     }
@@ -54,7 +70,7 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
             // get handlers by target
             const handlers = SUBSCRIBERS.get(receiver)?.get(p)
             if (handlers) {
-                handlers.forEach((handler) => handler(newValue))
+                handlers.forEach((handler) => notify(handler, newValue))
             }
             Reflect.set(target, p, newValue, receiver)
             return true
@@ -67,7 +83,7 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
     return result
 }
 
-function subscribe<T extends TDefineObject, K extends keyof T>(target: T, field: K, handler: TSubscribeHandlers<T[K]>) {
+function subscribe<T extends TPlainObject, K extends keyof T>(target: T, field: K, handler: TSubscribeHandlers<T[K]>) {
     let fieldSubscribed = SUBSCRIBERS.get(target)
     if (fieldSubscribed) {
         const handlers = fieldSubscribed.get(field as string) ?? []
@@ -78,6 +94,15 @@ function subscribe<T extends TDefineObject, K extends keyof T>(target: T, field:
         fieldSubscribed.set(field as string, [handler as TSubscribeHandlers<unknown>])
     }
     SUBSCRIBERS.set(target, fieldSubscribed)
+    return function () {
+        const fieldSubscribed = SUBSCRIBERS.get(target)
+        if (fieldSubscribed) {
+            const handlers = fieldSubscribed.get(field as string) ?? []
+            const cleanedHandlers = handlers.filter((subscribedHandler) => subscribedHandler !== handler)
+            fieldSubscribed.set(field as string, cleanedHandlers)
+            SUBSCRIBERS.set(target, fieldSubscribed)
+        }
+    }
 }
 
 export { proxy, subscribe }
