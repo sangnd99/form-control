@@ -1,5 +1,7 @@
+import { deepEqual } from '../utils/deepEqual'
+import { TDefineObject } from './types'
+
 /* ##### TYPES ##### */
-type TDefineObject = Record<string, unknown>
 type TPlainObject = Record<string, unknown> & InstanceType<typeof Object>
 type TSubscribeHandlers<T> = (record: T) => void
 
@@ -9,7 +11,7 @@ const PROXY_CACHED = new WeakMap<object, object>()
 const TO_BE_NOTIFIED = new Set<TSubscribeHandlers<unknown>>()
 
 /* ##### HELPER FUNCTIONS ##### */
-function canSubscribe(target: unknown) {
+function canProxify(target: unknown) {
     if (target === null || target === undefined) {
         return false
     }
@@ -56,7 +58,7 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
         get(target, p: string, receiver) {
             // If an object is passed, proxify it
             const record = target[p]
-            if (canSubscribe(record)) {
+            if (canProxify(record)) {
                 return proxy(record as ProxifyObject)
             }
             return Reflect.get(target, p, receiver)
@@ -64,7 +66,7 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
         set(target, p: string, newValue, receiver) {
             const prevValue = target[p]
             // Do nothing if new value is equal to old value
-            if (prevValue === newValue) {
+            if (deepEqual(prevValue, newValue)) {
                 return true
             }
             // get handlers by target
@@ -94,15 +96,20 @@ function subscribe<T extends TPlainObject, K extends keyof T>(target: T, field: 
         fieldSubscribed.set(field as string, [handler as TSubscribeHandlers<unknown>])
     }
     SUBSCRIBERS.set(target, fieldSubscribed)
-    return function () {
-        const fieldSubscribed = SUBSCRIBERS.get(target)
-        if (fieldSubscribed) {
-            const handlers = fieldSubscribed.get(field as string) ?? []
-            const cleanedHandlers = handlers.filter((subscribedHandler) => subscribedHandler !== handler)
-            fieldSubscribed.set(field as string, cleanedHandlers)
-            SUBSCRIBERS.set(target, fieldSubscribed)
-        }
-    }
 }
 
-export { proxy, subscribe }
+function deproxy<T extends TDefineObject>(obj: T): T {
+    return Object.fromEntries(
+        Object.entries(Object.assign({}, obj)).map(([key, value]) => {
+            if (value instanceof Object) {
+                if (!canProxify(value)) {
+                    return [key, value]
+                }
+                return [key, deproxy(value as T)]
+            }
+            return [key, value]
+        })
+    ) as T
+}
+
+export { proxy, deproxy, subscribe }

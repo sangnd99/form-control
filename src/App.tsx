@@ -1,60 +1,88 @@
-import { useForm } from './core'
+import { useEffect, useState } from 'react'
+import { useForm, FormField } from './core'
 function App() {
-    //const state = proxy({
-    //    count: 0,
-    //    isActive: true,
-    //    info: {
-    //        name: 'sang',
-    //        birthDay: new Date()
-    //    }
-    //})
-    //subscribe(state.info, 'name', (record) => console.log('name is: ', record))
-    // console.log('state: ', state)
-    // state.count = 2
-    //state.info.name = 'name'
-    const { Field, ref } = useForm({
+    const [formValues, setFormValues] = useState({
+        email: '',
+        password: '',
+        remember: false
+    })
+
+    useEffect(() => {
+        ;(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            setFormValues({
+                email: 'example@yopmail.com',
+                password: 'afdsfafdsaf',
+                remember: true
+            })
+        })()
+    }, [])
+
+    const { controller, ref } = useForm({
         defaultValue: {
-            name: 'sang',
-            phone: '0987654321'
+            email: formValues.email ?? '',
+            password: formValues.password ?? '',
+            remember: formValues.remember ?? false
         },
         validations: {},
-		onSubmit(values) {
-			console.log('values: ', values)
-		},
+        onSubmit(values) {
+            console.log('submited: ', values)
+        }
     })
     return (
         <div className='p-4'>
             <form className='max-w-sm mx-auto' ref={ref}>
-				<Field name='phone'>hello</Field>
                 <div className='mb-5'>
                     <label htmlFor='email' className='block mb-2 text-sm font-medium text-gray-900 dark:text-white'>
                         Your email
                     </label>
-                    <input
-                        type='email'
-                        id='email'
-                        className='bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
-                        placeholder='name@flowbite.com'
-                    />
+                    <FormField name='email' controller={controller}>
+                        {({ value, handleChange }) => {
+                            return (
+                                <input
+                                    id='name'
+                                    className='bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
+                                    placeholder='name@flowbite.com'
+                                    value={value}
+                                    onChange={(e) => handleChange(e.target.value)}
+                                />
+                            )
+                        }}
+                    </FormField>
                 </div>
                 <div className='mb-5'>
                     <label htmlFor='password' className='block mb-2 text-sm font-medium text-gray-900 dark:text-white'>
                         Your password
                     </label>
-                    <input
-                        type='password'
-                        id='password'
-                        className='bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
-                    />
+                    <FormField controller={controller} name='password'>
+                        {(field) => {
+                            return (
+                                <input
+                                    type='password'
+                                    id='password'
+                                    className='bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500'
+                                    value={field.value}
+                                    onChange={(e) => field.handleChange(e.target.value)}
+                                />
+                            )
+                        }}
+                    </FormField>
                 </div>
                 <div className='flex items-start mb-5'>
                     <div className='flex items-center h-5'>
-                        <input
-                            id='remember'
-                            type='checkbox'
-                            value=''
-                            className='w-4 h-4 border border-gray-300 rounded-sm bg-gray-50 focus:ring-3 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:focus:ring-offset-gray-800'
-                        />
+                        <FormField controller={controller} name='remember'>
+                            {(field) => {
+                                return (
+                                    <input
+                                        id='remember'
+                                        type='checkbox'
+                                        checked={field.value}
+                                        onChange={(e) => field.handleChange(e.target.checked)}
+                                        className='w-4 h-4 border border-gray-300 rounded-sm bg-gray-50 focus:ring-3 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:focus:ring-offset-gray-800'
+                                    />
+                                )
+                            }}
+                        </FormField>
                     </div>
                     <label htmlFor='remember' className='ms-2 text-sm font-medium text-gray-900 dark:text-gray-300'>
                         Remember me

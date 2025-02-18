@@ -1,13 +1,10 @@
 import { proxy } from './proxyState'
+import { TFormController, TDefineObject } from './types'
 
-type TFormState = {
-    values: Record<string, unknown>
-    errors: Partial<Record<string, string>>[]
-}
-
-const formState = proxy<TFormState>({
-	values: {},
-	errors: []
+const formController = proxy<TFormController<TDefineObject>>({
+    values: {},
+    errors: [],
+	touches: []
 })
 
-export { formState }
+export { formController }
