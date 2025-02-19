@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { subscribe } from './proxyState'
-import { TDefineObject, TFormController } from './types'
+import { TDefineObject, TFormController, TValidationFunction } from './types'
 
-type TFields<FormValues extends TDefineObject, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> = {
+type TFields<FormValues, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> = {
     value: FormValues[Key]
     handleChange: (changedValue: FormValues[Key]) => void
     handleBlur?: () => void
@@ -11,7 +11,7 @@ type TFields<FormValues extends TDefineObject, Key extends keyof FormValues, Wat
     watch: Partial<Pick<FormValues, WatchKey[number]>>
 }
 
-interface IFieldProps<FormValues extends TDefineObject, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> {
+interface IFieldProps<FormValues, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> {
     children: (field: TFields<FormValues, Key, WatchKey>) => React.JSX.Element | React.ReactNode
 }
 
@@ -19,19 +19,23 @@ interface IProps<
     FormValues extends TDefineObject,
     Key extends keyof FormValues,
     Controller extends TFormController<FormValues>,
-	WatchKey extends Array<keyof FormValues>
+    WatchKey extends Array<keyof FormValues>
 > extends IFieldProps<FormValues, Key, WatchKey> {
     name: Key
     watch?: WatchKey
     controller: Controller
 }
 
-const Field = <FormValues extends TDefineObject, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>>({
+const Field = <
+    FormValues extends TDefineObject,
+    Key extends keyof FormValues,
+    WatchKey extends Array<keyof FormValues>
+>({
     name,
     watch,
     controller,
     children
-}: IProps<FormValues, Key, TFormController<FormValues>, WatchKey> ) => {
+}: IProps<FormValues, Key, TFormController<FormValues>, WatchKey>) => {
     /*
      * Variables
      * */
@@ -54,7 +58,10 @@ const Field = <FormValues extends TDefineObject, Key extends keyof FormValues, W
             watch.forEach((key) => {
                 Object.assign(watchRecord, { [key]: values[key] })
             })
+            // assign to Field state
             setWatchRecord(watchRecord)
+            // assign to Controller
+            Object.assign(controller.watches, { [name]: watchRecord })
         }
     })
     // subscribe changed value
@@ -62,7 +69,12 @@ const Field = <FormValues extends TDefineObject, Key extends keyof FormValues, W
     // subscribe watch values
     if (watch && watch.length > 0) {
         watch.forEach((key) => {
-            subscribe(controller.values, key, (value) => setWatchRecord((prev) => ({ ...prev, [key]: value })))
+            subscribe(controller.values, key, (value) => {
+                // assign to Field state
+                setWatchRecord((prev) => ({ ...prev, [key]: value }))
+                // assign to Controller
+                controller.watches[key] = { ...controller.watches[key], [key]: value }
+            })
         })
     }
 

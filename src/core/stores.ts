@@ -4,7 +4,9 @@ import { TFormController, TDefineObject } from './types'
 const formController = proxy<TFormController<TDefineObject>>({
     values: {},
     errors: [],
-	touches: []
+	touches: [],
+	watches: {},
+	requestValidateSchema: false,
 })
 
 export { formController }
