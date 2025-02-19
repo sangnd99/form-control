@@ -1,12 +1,11 @@
 import React, { useEffect, useRef } from 'react'
-import { useShallowEffect } from '../hooks'
 import { deproxy } from './proxyState'
 import { formController } from './stores'
 import { TDefineObject, TFormController } from './types'
 
 interface IParams<Value> {
     defaultValue: Value
-    validations: unknown
+    validations?: { [key in keyof Value]?: unknown }
     onSubmit: (values: Value) => Promise<void> | void
 }
 
@@ -21,6 +20,7 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
      * */
     // destructure params
     const { onSubmit, defaultValue } = params
+
     // set form initial values
     formController.values = defaultValue
 
@@ -32,10 +32,6 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
     /*
      * Effects
      * */
-    // set default values
-    useShallowEffect(() => {
-        formController.values = defaultValue
-    }, [defaultValue])
     // submit handler
     useEffect(() => {
         if (formRef.current) {
@@ -47,6 +43,7 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
                 if (formController.errors.length > 0) {
                     return
                 }
+				// validating
                 // submit values
                 onSubmit(deproxy(formController.values) as DefaultValue)
             }
@@ -60,7 +57,5 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
         controller: formController as TFormController<DefaultValue>
     }
 }
-
-//Field: (props) => <Field {...props} />,
 
 export { useForm }

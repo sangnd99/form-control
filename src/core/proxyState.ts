@@ -6,7 +6,7 @@ type TPlainObject = Record<string, unknown> & InstanceType<typeof Object>
 type TSubscribeHandlers<T> = (record: T) => void
 
 /* ##### CONSTANT ##### */
-const SUBSCRIBERS = new WeakMap<TDefineObject, Map<string, TSubscribeHandlers<unknown>[]>>()
+const SUBSCRIBERS = new WeakMap<TDefineObject, Map<string, Set<TSubscribeHandlers<unknown>>>>()
 const PROXY_CACHED = new WeakMap<object, object>()
 const TO_BE_NOTIFIED = new Set<TSubscribeHandlers<unknown>>()
 
@@ -52,7 +52,7 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
         return PROXY_CACHED.get(obj) as ProxifyObject
     }
 
-    const handlers = new Map<string, TSubscribeHandlers<unknown>[]>()
+    const handlers = new Map<string, Set<TSubscribeHandlers<unknown>>>()
 
     const proxyHandler: ProxyHandler<ProxifyObject> = {
         get(target, p: string, receiver) {
@@ -69,6 +69,13 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
             if (deepEqual(prevValue, newValue)) {
                 return true
             }
+			// remove old subscribe if has set new value
+			if (PROXY_CACHED.has(target[p] as object)) {
+				const deprecatedSubscriber = PROXY_CACHED.get(target[p] as object)
+				if (deprecatedSubscriber) {
+					SUBSCRIBERS.delete(deprecatedSubscriber as TDefineObject)
+				}
+			}
             // get handlers by target
             const handlers = SUBSCRIBERS.get(receiver)?.get(p)
             if (handlers) {
@@ -88,12 +95,15 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
 function subscribe<T extends TPlainObject, K extends keyof T>(target: T, field: K, handler: TSubscribeHandlers<T[K]>) {
     let fieldSubscribed = SUBSCRIBERS.get(target)
     if (fieldSubscribed) {
-        const handlers = fieldSubscribed.get(field as string) ?? []
-        handlers.push(handler as TSubscribeHandlers<unknown>)
-        fieldSubscribed.set(field as string, handlers)
+        const handlers = fieldSubscribed.get(field as string) ?? new Set<TSubscribeHandlers<unknown>>()
+        if (!handlers.has(handler as TSubscribeHandlers<unknown>)) {
+            handlers.add(handler as TSubscribeHandlers<unknown>)
+            fieldSubscribed.set(field as string, handlers)
+        }
     } else {
         fieldSubscribed = new Map()
-        fieldSubscribed.set(field as string, [handler as TSubscribeHandlers<unknown>])
+        const handlers = new Set<TSubscribeHandlers<unknown>>()
+        fieldSubscribed.set(field as string, handlers.add(handler as TSubscribeHandlers<unknown>))
     }
     SUBSCRIBERS.set(target, fieldSubscribed)
 }
