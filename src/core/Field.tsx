@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import { subscribe } from './proxyState'
-import { TDefineObject, TFormController, TValidationFunction } from './types'
+import { TDefineObject, TFormController, TValidationResponse } from './types'
 
 type TFields<FormValues, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> = {
     value: FormValues[Key]
     handleChange: (changedValue: FormValues[Key]) => void
     handleBlur?: () => void
-    isError?: boolean
+    isError: boolean
+    errorMsg: string
     setFieldValue?: <SetFieldKey extends keyof FormValues>(key: SetFieldKey, value: FormValues[SetFieldKey]) => void
     watch: Partial<Pick<FormValues, WatchKey[number]>>
 }
@@ -44,43 +45,28 @@ const Field = <
      * */
     const [value, setValue] = useState<FormValues[Key]>(controller.values[name])
     const [watchRecord, setWatchRecord] = useState<Record<string, unknown>>({})
+    const [fieldError, setFieldError] = useState<TValidationResponse | undefined>(undefined)
+
+    /*
+     * Assign value to form controller
+     * */
+    if (watch) {
+        controller.watches[name] = watch
+    }
 
     /*
      * Subscriber
      * */
-    // subscribe initial value
-    subscribe(controller, 'values', (values) => {
-        // initial current value
-        setValue(values[name])
-        // initial watch record
-        if (watch && watch.length > 0) {
-            const watchRecord = {}
-            watch.forEach((key) => {
-                Object.assign(watchRecord, { [key]: values[key] })
-            })
-            // assign to Field state
-            setWatchRecord(watchRecord)
-            // assign to Controller
-            Object.assign(controller.watches, { [name]: watchRecord })
-        }
-    })
     // subscribe changed value
     subscribe(controller.values, name, setValue)
     // subscribe watch values
     if (watch && watch.length > 0) {
         watch.forEach((key) => {
-            subscribe(controller.values, key, (value) => {
-                // assign to Field state
-                setWatchRecord((prev) => ({ ...prev, [key]: value }))
-                // assign to Controller
-                controller.watches[key] = { ...controller.watches[key], [key]: value }
-            })
+            subscribe(controller.values, key, (value) => setWatchRecord((prev) => ({ ...prev, [key]: value })))
         })
     }
-
-    /*
-     * Effects
-     * */
+    // subscribe error
+    subscribe(controller.errors, name, (error) => console.log(name, ': ', error))
 
     /*
      * Handlers
@@ -94,7 +80,9 @@ const Field = <
             {children({
                 value: value,
                 handleChange: handleChangeValue,
-                watch: watchRecord as FormValues
+                watch: watchRecord as FormValues,
+                errorMsg: fieldError?.msg ?? '',
+                isError: fieldError?.isValid !== undefined && !fieldError.isValid
             })}
         </div>
     )

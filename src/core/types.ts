@@ -1,13 +1,13 @@
 type TDefineObject = Record<string, unknown>
 
-type TValidationFunction = <Value, WatchValue>(value: Value, watchValue?: WatchValue) => {isValid: boolean, msg: string}
+type TValidationResponse = { isValid: boolean; msg: string }
+type TValidationFunction = <Value, WatchValue>(value: Value, watchValue?: WatchValue) => TValidationResponse
 
 type TFormController<Values extends TDefineObject> = {
     values: Values
-    errors: Array<keyof Values>
-	watches: Record<keyof Values, Partial<Values>>
-	touches: (keyof Values)[]
-	requestValidateSchema: boolean
+    errors: { [key in keyof Values]?: TValidationResponse }
+    watches: Record<keyof Values, Array<keyof Values>>
+    touches: (keyof Values)[]
 }
 
-export type { TDefineObject, TFormController, TValidationFunction }
+export type { TDefineObject, TFormController, TValidationFunction, TValidationResponse }

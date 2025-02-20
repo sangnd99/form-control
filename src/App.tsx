@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useForm, FormField } from './core'
+import { useForm, FormField, v } from './core'
 function App() {
     const [formValues, setFormValues] = useState({
         email: '',
@@ -7,16 +7,16 @@ function App() {
         remember: false
     })
 
-    useEffect(() => {
-        ;(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            setFormValues({
-                email: 'example@yopmail.com',
-                password: 'afdsfafdsaf',
-                remember: true
-            })
-        })()
-    }, [])
+    // useEffect(() => {
+    //     ;(async () => {
+    //         await new Promise((resolve) => setTimeout(resolve, 1000))
+    //         setFormValues({
+    //             email: 'example@yopmail.com',
+    //             password: 'afdsfafdsaf',
+    //             remember: true
+    //         })
+    //     })()
+    // }, [])
 
     const { controller, ref } = useForm({
         defaultValue: {
@@ -24,7 +24,7 @@ function App() {
             password: formValues.password ?? '',
             remember: formValues.remember ?? false
         },
-        validations: { email: [], password: [], remember: [] },
+        validations: { email: [v.require('This field is required')], password: [v.require('This field is required')] },
         onSubmit(values) {
             console.log('submited: ', values)
         }
@@ -37,19 +37,21 @@ function App() {
                         Your email
                     </label>
                     <FormField name="email" watch={['remember']} controller={controller}>
-                        {({ value, handleChange, watch }) => {
-                            console.log('remember: ', watch.remember)
+                        {({ value, handleChange, watch, isError, errorMsg }) => {
                             return (
-                                <input
-                                    id="name"
-                                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                                    placeholder="name@flowbite.com"
-                                    value={value}
-                                    onChange={(e) => handleChange(e.target.value)}
-                                    style={{
-                                        borderColor: watch.remember ? 'blue' : undefined
-                                    }}
-                                />
+                                <>
+                                    <input
+                                        id="name"
+                                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                                        placeholder="name@flowbite.com"
+                                        value={value}
+                                        onChange={(e) => handleChange(e.target.value)}
+                                        style={{
+                                            borderColor: watch.remember ? 'blue' : undefined
+                                        }}
+                                    />
+                                    {isError ? <span className="text-red-400 text-sm">{errorMsg}</span> : null}
+                                </>
                             )
                         }}
                     </FormField>
@@ -61,13 +63,18 @@ function App() {
                     <FormField controller={controller} name="password">
                         {(field) => {
                             return (
-                                <input
-                                    type="password"
-                                    id="password"
-                                    className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                                    value={field.value}
-                                    onChange={(e) => field.handleChange(e.target.value)}
-                                />
+                                <>
+                                    <input
+                                        type="password"
+                                        id="password"
+                                        className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                                        value={field.value}
+                                        onChange={(e) => field.handleChange(e.target.value)}
+                                    />
+                                    {field.isError ? (
+                                        <span className="text-red-400 text-sm">{field.errorMsg}</span>
+                                    ) : null}
+                                </>
                             )
                         }}
                     </FormField>
@@ -77,13 +84,18 @@ function App() {
                         <FormField controller={controller} name="remember">
                             {(field) => {
                                 return (
-                                    <input
-                                        id="remember"
-                                        type="checkbox"
-                                        checked={field.value}
-                                        onChange={(e) => field.handleChange(e.target.checked)}
-                                        className="w-4 h-4 border border-gray-300 rounded-sm bg-gray-50 focus:ring-3 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:focus:ring-offset-gray-800"
-                                    />
+                                    <>
+                                        <input
+                                            id="remember"
+                                            type="checkbox"
+                                            checked={field.value}
+                                            onChange={(e) => field.handleChange(e.target.checked)}
+                                            className="w-4 h-4 border border-gray-300 rounded-sm bg-gray-50 focus:ring-3 focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:focus:ring-blue-600 dark:ring-offset-gray-800 dark:focus:ring-offset-gray-800"
+                                        />
+                                        {field.isError ? (
+                                            <span className="text-red-400 text-sm">{field.errorMsg}</span>
+                                        ) : null}
+                                    </>
                                 )
                             }}
                         </FormField>

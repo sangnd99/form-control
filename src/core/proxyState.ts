@@ -23,19 +23,6 @@ function canProxify(target: unknown) {
     return true
 }
 
-// Batching notifier
-function flush(params: unknown) {
-    return function () {
-        TO_BE_NOTIFIED.forEach((fn) => fn(params))
-        TO_BE_NOTIFIED.clear()
-    }
-}
-
-function notify(fn: TSubscribeHandlers<unknown>, params: unknown) {
-    TO_BE_NOTIFIED.add(fn)
-    Promise.resolve().then(flush(params))
-}
-
 /* ##### CORE FUNCTIONS ##### */
 function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): ProxifyObject {
     if (PROXY_CACHED.has(obj)) {
@@ -53,34 +40,63 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
     }
 
     const handlers = new Map<string, Set<TSubscribeHandlers<unknown>>>()
+    let isInitialed = false
 
     const proxyHandler: ProxyHandler<ProxifyObject> = {
         get(target, p: string, receiver) {
             // If an object is passed, proxify it
-            const record = target[p]
-            if (canProxify(record)) {
-                return proxy(record as ProxifyObject)
+            // const record = target[p]
+            // if (canProxify(record)) {
+            //     return proxy(record as ProxifyObject)
+            // }
+            const cachedProxyObject = PROXY_CACHED.get(target[p] as object)
+            if (cachedProxyObject) {
+                return cachedProxyObject
             }
             return Reflect.get(target, p, receiver)
         },
         set(target, p: string, newValue, receiver) {
             const prevValue = target[p]
             // Do nothing if new value is equal to old value
-            if (deepEqual(prevValue, newValue)) {
+            if (isInitialed && prevValue === newValue) {
                 return true
             }
-			// remove old subscribe if has set new value
-			if (PROXY_CACHED.has(target[p] as object)) {
-				const deprecatedSubscriber = PROXY_CACHED.get(target[p] as object)
-				if (deprecatedSubscriber) {
-					SUBSCRIBERS.delete(deprecatedSubscriber as TDefineObject)
-				}
-			}
-            // get handlers by target
-            const handlers = SUBSCRIBERS.get(receiver)?.get(p)
-            if (handlers) {
-                handlers.forEach((handler) => notify(handler, newValue))
+
+            // proxify value
+            if (canProxify(newValue)) {
+                proxy(newValue as ProxifyObject)
             }
+
+            // get current subscriber
+            const subscriber = SUBSCRIBERS.get(receiver)
+
+            // invoke current target handler
+            const handlers = subscriber?.get(p)
+            if (handlers) {
+                handlers.forEach((handler) => handler(newValue))
+            }
+
+            // invoke nested subscriber
+            const prevTargetProxy = PROXY_CACHED.get(prevValue as object)
+            console.log('prevTargetProxy: ', prevTargetProxy, SUBSCRIBERS)
+            if (prevTargetProxy) {
+                const prevSubscriber = SUBSCRIBERS.get(prevTargetProxy as ProxifyObject)
+                if (prevSubscriber) {
+                    prevSubscriber.forEach((handlers, key) => {
+                        handlers.forEach((handler) => handler(newValue[key]))
+                    })
+                }
+            }
+
+            // remove deprecated subscribe
+            if (PROXY_CACHED.has(prevValue as object)) {
+                const deprecatedSubscriber = PROXY_CACHED.get(target[p] as object)
+                if (deprecatedSubscriber) {
+                    SUBSCRIBERS.delete(deprecatedSubscriber as TDefineObject)
+                    PROXY_CACHED.delete(prevValue as object)
+                }
+            }
+
             Reflect.set(target, p, newValue, receiver)
             return true
         }
@@ -88,6 +104,12 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
     const result = new Proxy(obj, proxyHandler)
     PROXY_CACHED.set(obj, result)
     SUBSCRIBERS.set(result, handlers)
+
+    for (const key in obj) {
+        result[key] = obj[key]
+    }
+
+    isInitialed = true
 
     return result
 }

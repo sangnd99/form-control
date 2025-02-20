@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react'
 import { deproxy } from './proxyState'
 import { formController } from './stores'
-import { TDefineObject, TFormController } from './types'
+import { TDefineObject, TFormController, TValidationFunction } from './types'
+import { validateFields } from './helpers'
 
 interface IParams<Value> {
     defaultValue: Value
-    validations?: { [key in keyof Value]?: unknown }
+    validations?: Partial<{ [key in keyof Value]: TValidationFunction[] }>
     onSubmit: (values: Value) => Promise<void> | void
 }
 
@@ -19,7 +20,7 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
      * Initial
      * */
     // destructure params
-    const { onSubmit, defaultValue } = params
+    const { onSubmit, defaultValue, validations } = params
 
     // set form initial values
     formController.values = defaultValue
@@ -39,11 +40,23 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
                 e.preventDefault()
                 e.stopPropagation()
 
-                // do nothing if contains errors
-                if (formController.errors.length > 0) {
-                    return
+                // validating
+                if (validations && Object.keys(validations).length > 0) {
+                    // do nothing if contains errors
+                    const fieldErrors = validateFields(
+                        formController.values as DefaultValue,
+                        validations,
+                        formController.watches
+                    )
+                    if (Object.keys(fieldErrors).length > 0) {
+                        console.log('fieldErrors: ', fieldErrors)
+                        formController.errors = fieldErrors
+                        // Object.entries(fieldErrors).forEach(([field, error]) => {
+                        //     formController.errors[field] = error
+                        // })
+                        return
+                    }
                 }
-				// validating
                 // submit values
                 onSubmit(deproxy(formController.values) as DefaultValue)
             }
