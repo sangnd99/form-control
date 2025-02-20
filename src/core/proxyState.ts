@@ -1,4 +1,3 @@
-import { deepEqual } from '../utils/deepEqual'
 import { TDefineObject } from './types'
 
 /* ##### TYPES ##### */
@@ -8,7 +7,6 @@ type TSubscribeHandlers<T> = (record: T) => void
 /* ##### CONSTANT ##### */
 const SUBSCRIBERS = new WeakMap<TDefineObject, Map<string, Set<TSubscribeHandlers<unknown>>>>()
 const PROXY_CACHED = new WeakMap<object, object>()
-const TO_BE_NOTIFIED = new Set<TSubscribeHandlers<unknown>>()
 
 /* ##### HELPER FUNCTIONS ##### */
 function canProxify(target: unknown) {
@@ -25,30 +23,10 @@ function canProxify(target: unknown) {
 
 /* ##### CORE FUNCTIONS ##### */
 function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): ProxifyObject {
-    if (PROXY_CACHED.has(obj)) {
-        /**
-         * Obj: {foo: {bar: 'baz'}}
-         * Example:
-         * when doing
-         * obj.foo.bar = 'something'
-         * the `get` trap still be called for `foo` property
-         * so that, we need to cached the handler of `foo` property and return if has
-         * than re-create a new instance of Proxy for `foo`
-         * if does that, the SUBSCRIBERS of `foo` will never be corrected
-         * */
-        return PROXY_CACHED.get(obj) as ProxifyObject
-    }
-
     const handlers = new Map<string, Set<TSubscribeHandlers<unknown>>>()
-    let isInitialed = false
 
     const proxyHandler: ProxyHandler<ProxifyObject> = {
         get(target, p: string, receiver) {
-            // If an object is passed, proxify it
-            // const record = target[p]
-            // if (canProxify(record)) {
-            //     return proxy(record as ProxifyObject)
-            // }
             const cachedProxyObject = PROXY_CACHED.get(target[p] as object)
             if (cachedProxyObject) {
                 return cachedProxyObject
@@ -56,44 +34,43 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
             return Reflect.get(target, p, receiver)
         },
         set(target, p: string, newValue, receiver) {
-            const prevValue = target[p]
-            // Do nothing if new value is equal to old value
-            if (isInitialed && prevValue === newValue) {
-                return true
-            }
+            const currentValue = target[p]
+            const isChanged = currentValue !== newValue
 
-            // proxify value
-            if (canProxify(newValue)) {
-                proxy(newValue as ProxifyObject)
-            }
-
-            // get current subscriber
-            const subscriber = SUBSCRIBERS.get(receiver)
-
-            // invoke current target handler
-            const handlers = subscriber?.get(p)
-            if (handlers) {
-                handlers.forEach((handler) => handler(newValue))
-            }
-
-            // invoke nested subscriber
-            const prevTargetProxy = PROXY_CACHED.get(prevValue as object)
-            console.log('prevTargetProxy: ', prevTargetProxy, SUBSCRIBERS)
-            if (prevTargetProxy) {
-                const prevSubscriber = SUBSCRIBERS.get(prevTargetProxy as ProxifyObject)
-                if (prevSubscriber) {
-                    prevSubscriber.forEach((handlers, key) => {
-                        handlers.forEach((handler) => handler(newValue[key]))
-                    })
+            // invoke handlers for target
+            // only invoke when new value is changed
+            if (isChanged) {
+                const cachedProxyTarget = PROXY_CACHED.get(target as object)
+                const handlers = SUBSCRIBERS.get(cachedProxyTarget as ProxifyObject)?.get(p)
+                if (handlers) {
+                    handlers.forEach((fn) => fn(newValue))
                 }
             }
-
-            // remove deprecated subscribe
-            if (PROXY_CACHED.has(prevValue as object)) {
-                const deprecatedSubscriber = PROXY_CACHED.get(target[p] as object)
-                if (deprecatedSubscriber) {
-                    SUBSCRIBERS.delete(deprecatedSubscriber as TDefineObject)
-                    PROXY_CACHED.delete(prevValue as object)
+            // if new value can be proxified
+            if (canProxify(newValue)) {
+                // proxify value
+                const newProxifyValue = proxy(newValue as ProxifyObject)
+                // remove deprecated subscribe
+                const deprecatedProxifyValue = PROXY_CACHED.get(currentValue as TDefineObject)
+                if (deprecatedProxifyValue) {
+                    // assign subcribe to new value
+                    const subscribe = SUBSCRIBERS.get(deprecatedProxifyValue as ProxifyObject)
+                    if (subscribe && subscribe.size > 0) {
+                        SUBSCRIBERS.set(newProxifyValue, subscribe)
+                        subscribe.forEach((handlers, field) => {
+                            if (handlers.size > 0) {
+                                // only invoke subsciber which has handler and its value is changed
+                                if ((currentValue as TDefineObject)[field] !== newValue[field]) {
+                                    handlers.forEach((fn) => fn(newValue[field]))
+                                }
+                            }
+                        })
+                    }
+                    // remove deprecated subscribe
+                    if (isChanged) {
+                        SUBSCRIBERS.delete(deprecatedProxifyValue as ProxifyObject)
+                        PROXY_CACHED.delete(currentValue as TDefineObject)
+                    }
                 }
             }
 
@@ -103,31 +80,27 @@ function proxy<ProxifyObject extends TDefineObject>(obj: ProxifyObject): Proxify
     }
     const result = new Proxy(obj, proxyHandler)
     PROXY_CACHED.set(obj, result)
-    SUBSCRIBERS.set(result, handlers)
 
     for (const key in obj) {
         result[key] = obj[key]
+        handlers.set(key, new Set())
     }
 
-    isInitialed = true
+    SUBSCRIBERS.set(result, handlers)
 
     return result
 }
 
 function subscribe<T extends TPlainObject, K extends keyof T>(target: T, field: K, handler: TSubscribeHandlers<T[K]>) {
-    let fieldSubscribed = SUBSCRIBERS.get(target)
+    const fieldSubscribed = SUBSCRIBERS.get(target)
     if (fieldSubscribed) {
         const handlers = fieldSubscribed.get(field as string) ?? new Set<TSubscribeHandlers<unknown>>()
         if (!handlers.has(handler as TSubscribeHandlers<unknown>)) {
             handlers.add(handler as TSubscribeHandlers<unknown>)
             fieldSubscribed.set(field as string, handlers)
+            SUBSCRIBERS.set(target, fieldSubscribed)
         }
-    } else {
-        fieldSubscribed = new Map()
-        const handlers = new Set<TSubscribeHandlers<unknown>>()
-        fieldSubscribed.set(field as string, handlers.add(handler as TSubscribeHandlers<unknown>))
     }
-    SUBSCRIBERS.set(target, fieldSubscribed)
 }
 
 function deproxy<T extends TDefineObject>(obj: T): T {
