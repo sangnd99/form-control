@@ -1,15 +1,19 @@
 import React, { useState } from 'react'
 import { subscribe } from './proxyState'
 import { TDefineObject, TFormController, TValidationResponse } from './types'
+import { invokeValidate } from './helpers'
 
 type TFields<FormValues, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> = {
     value: FormValues[Key]
-    handleChange: (changedValue: FormValues[Key]) => void
-    handleBlur?: () => void
+    handleChange: (changedValue: FormValues[Key]) => Promise<void> | void
     isError: boolean
     errorMsg: string
-    setFieldValue?: <SetFieldKey extends keyof FormValues>(key: SetFieldKey, value: FormValues[SetFieldKey]) => void
     watch: Partial<Pick<FormValues, WatchKey[number]>>
+    setFieldValue: <SetFieldKey extends keyof FormValues>(
+        field: SetFieldKey,
+        changedValue: FormValues[SetFieldKey]
+    ) => Promise<void> | void
+    handleBlur: () => void
 }
 
 interface IFieldProps<FormValues, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> {
@@ -46,6 +50,7 @@ const Field = <
     const [value, setValue] = useState<FormValues[Key]>(controller.values[name])
     const [watchRecord, setWatchRecord] = useState<Record<string, unknown>>({})
     const [fieldError, setFieldError] = useState<TValidationResponse | undefined>(undefined)
+    console.log(name, 'is re-render with changed value: ', value)
 
     /*
      * Assign value to form controller
@@ -66,13 +71,38 @@ const Field = <
         })
     }
     // subscribe error
-    subscribe(controller.errors, name, (error) => console.log(name, ': ', error))
+    subscribe(controller.errors, name, setFieldError)
 
     /*
      * Handlers
      * */
-    const handleChangeValue = (changedValue: FormValues[Key]) => {
+    // set current field value
+    const handleChangeValue = async (changedValue: FormValues[Key]) => {
         controller.values[name] = changedValue
+        if (controller.touched.has(name)) {
+            const validateFns = controller.validations[name as string] ?? []
+            const response = await invokeValidate(validateFns, changedValue, watchRecord)
+            controller.errors[name] = response
+        }
+    }
+
+    // set others field value
+    const handleSetFieldValue = async <Key extends keyof FormValues>(field: Key, changedValue: FormValues[Key]) => {
+        controller.values[field] = changedValue
+        if (controller.touched.has(field)) {
+            const fieldWatchedValues: TDefineObject = {}
+            const fieldWatched = controller.watches[field] ?? []
+            fieldWatched.forEach((field) => {
+                Object.assign(fieldWatchedValues, { [field]: controller.values[field] })
+            })
+            const validateFns = controller.validations[field as string] ?? []
+            const response = await invokeValidate(validateFns, changedValue, fieldWatchedValues)
+            controller.errors[field] = response
+        }
+    }
+
+    const handleBlurField = () => {
+        controller.touched.add(name)
     }
 
     return (
@@ -82,7 +112,9 @@ const Field = <
                 handleChange: handleChangeValue,
                 watch: watchRecord as FormValues,
                 errorMsg: fieldError?.msg ?? '',
-                isError: fieldError?.isValid !== undefined && !fieldError.isValid
+                isError: fieldError?.isValid !== undefined && !fieldError.isValid,
+                handleBlur: handleBlurField,
+                setFieldValue: handleSetFieldValue
             })}
         </div>
     )

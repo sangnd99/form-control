@@ -24,6 +24,9 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
 
     // set form initial values
     formController.values = defaultValue
+    if (validations) {
+        formController.validations = validations
+    }
 
     /*
      * Refs
@@ -36,24 +39,23 @@ function useForm<DefaultValue extends TDefineObject>(params: IParams<DefaultValu
     // submit handler
     useEffect(() => {
         if (formRef.current) {
-            function handleSubmit(e: SubmitEvent) {
+            async function handleSubmit(e: SubmitEvent) {
                 e.preventDefault()
                 e.stopPropagation()
 
+                // if user submit, set touched to all fields
+                formController.touched = new Set(Object.keys(formController.values))
                 // validating
                 if (validations && Object.keys(validations).length > 0) {
                     // do nothing if contains errors
-                    const fieldErrors = validateFields(
+                    const fieldErrors = await validateFields(
                         formController.values as DefaultValue,
                         validations,
                         formController.watches
                     )
+                    formController.errors = fieldErrors
                     if (Object.keys(fieldErrors).length > 0) {
-                        console.log('fieldErrors: ', fieldErrors)
-                        formController.errors = fieldErrors
-                        // Object.entries(fieldErrors).forEach(([field, error]) => {
-                        //     formController.errors[field] = error
-                        // })
+                        // do nothing if contain errors
                         return
                     }
                 }
