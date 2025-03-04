@@ -16,19 +16,16 @@ type TFields<FormValues, Key extends keyof FormValues, WatchKey extends Array<ke
     handleBlur: () => void
 }
 
-interface IFieldProps<FormValues, Key extends keyof FormValues, WatchKey extends Array<keyof FormValues>> {
-    children: (field: TFields<FormValues, Key, WatchKey>) => React.JSX.Element | React.ReactNode
-}
-
-interface IProps<
+interface IFieldProps<
     FormValues extends TDefineObject,
     Key extends keyof FormValues,
     Controller extends TFormController<FormValues>,
     WatchKey extends Array<keyof FormValues>
-> extends IFieldProps<FormValues, Key, WatchKey> {
+> {
     name: Key
     watch?: WatchKey
     controller: Controller
+    children: (field: TFields<FormValues, Key, WatchKey>) => React.JSX.Element | React.ReactNode
 }
 
 const Field = <
@@ -40,7 +37,7 @@ const Field = <
     watch,
     controller,
     children
-}: IProps<FormValues, Key, TFormController<FormValues>, WatchKey>) => {
+}: IFieldProps<FormValues, Key, TFormController<FormValues>, WatchKey>) => {
     /*
      * Variables
      * */

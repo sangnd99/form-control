@@ -36,7 +36,7 @@ function App() {
                     <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
                         Your email
                     </label>
-                    <FormField name="email" watch={['remember']} controller={controller}>
+                    <FormField name='email' watch={['remember']} controller={controller}>
                         {({ value, handleChange, watch, isError, errorMsg, handleBlur, setFieldValue }) => {
                             return (
                                 <>
